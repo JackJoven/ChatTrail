@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="./options.css">
+    <title>ChatTrail 设置</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">ChatTrail</p>
+          <h1>设置与提示词库</h1>
+        </div>
+        <div class="actions">
+          <button id="export-backup" type="button">导出备份</button>
+          <label class="file-button">
+            导入备份
+            <input id="import-backup" type="file" accept="application/json">
+          </label>
+        </div>
+      </header>
+
+      <section>
+        <h2>功能开关</h2>
+        <div class="settings-grid">
+          <label><input type="checkbox" data-setting="quoteReply"> 引用回复</label>
+          <label><input type="checkbox" data-setting="exportTools"> 会话导出</label>
+          <label><input type="checkbox" data-setting="promptLibrary"> 提示词库</label>
+          <label><input type="checkbox" data-setting="mermaidPreview"> Mermaid 预览</label>
+          <label><input type="checkbox" data-setting="formulaCopy"> 公式复制</label>
+          <label><input type="checkbox" data-setting="titleSync"> 标签页标题同步</label>
+          <label><input type="checkbox" data-setting="timestamps"> 提问时间戳</label>
+          <label><input type="checkbox" data-setting="wideChat"> 更宽聊天区</label>
+          <label><input type="checkbox" data-setting="largeFont"> 更大正文</label>
+        </div>
+        <label class="select-row">
+          视觉效果
+          <select id="visual-effect">
+            <option value="none">关闭</option>
+            <option value="snow">雪</option>
+            <option value="rain">雨</option>
+            <option value="sakura">樱花</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <h2>提示词库</h2>
+        <form id="prompt-form">
+          <input id="prompt-id" type="hidden">
+          <label>
+            标题
+            <input id="prompt-title" type="text" placeholder="例如：PRD 评审">
+          </label>
+          <label>
+            标签
+            <input id="prompt-tags" type="text" placeholder="product, writing">
+          </label>
+          <label>
+            内容
+            <textarea id="prompt-body" placeholder="写下可复用的提示词"></textarea>
+          </label>
+          <div class="actions">
+            <button type="submit">保存提示词</button>
+            <button id="reset-prompt" type="button">清空表单</button>
+          </div>
+        </form>
+        <div id="prompt-list" class="prompt-list"></div>
+      </section>
+
+      <section>
+        <h2>平台状态</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>平台</th>
+              <th>时间轴</th>
+              <th>导出</th>
+              <th>提示词</th>
+              <th>引用回复</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>ChatGPT</td>
+              <td>已支持</td>
+              <td>已支持</td>
+              <td>已支持</td>
+              <td>已支持</td>
+            </tr>
+            <tr>
+              <td>豆包</td>
+              <td>已支持，可能需选择器微调</td>
+              <td>已支持</td>
+              <td>已支持</td>
+              <td>已支持</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+    <script src="./options.js"></script>
+  </body>
+</html>

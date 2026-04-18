@@ -1,6 +1,6 @@
 # ChatTrail
 
-ChatTrail is a browser extension prototype for timeline navigation on AI chat platforms.
+ChatTrail is a browser extension prototype for AI chat workflow enhancements.
 
 ## Current Scope
 
@@ -13,6 +13,16 @@ ChatTrail is a browser extension prototype for timeline navigation on AI chat pl
 - Click a node to jump to your message.
 - Hover a node to preview your message.
 - Press `j` / `k` to move to the next or previous user message when the chat input is not focused.
+
+## Current Features
+
+- User-message timeline navigation for ChatGPT and Doubao.
+- Markdown and JSON export for the current visible conversation.
+- Prompt library with local storage, insertion, backup, and restore.
+- Quote reply from selected text.
+- Formula copy buttons for KaTeX, MathJax, MathML, and `data-latex` nodes.
+- Lightweight Mermaid detection and preview for simple flowchart and sequence diagrams.
+- User message timestamps, title sync, chat width/font tweaks, and optional visual effects.
 
 ## Local Installation
 

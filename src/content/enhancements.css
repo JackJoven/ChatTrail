@@ -1,0 +1,111 @@
+.chattrail-message-timestamp {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin: 6px 0 0 0 !important;
+  padding: 2px 6px !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: 6px !important;
+  background: rgba(248, 250, 252, 0.88) !important;
+  color: #64748b !important;
+  font: 11px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  pointer-events: none !important;
+}
+
+.chattrail-formula-copy {
+  position: absolute !important;
+  right: -6px !important;
+  top: -10px !important;
+  z-index: 4 !important;
+  border: 1px solid rgba(15, 23, 42, 0.16) !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  cursor: pointer !important;
+  display: none !important;
+  font: 11px/1 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  padding: 5px 7px !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16) !important;
+}
+
+.chattrail-formula-host {
+  position: relative !important;
+}
+
+.chattrail-formula-host:hover > .chattrail-formula-copy {
+  display: inline-flex !important;
+}
+
+.chattrail-mermaid-card {
+  margin: 10px 0 !important;
+  border: 1px solid rgba(15, 23, 42, 0.14) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  overflow: hidden !important;
+}
+
+.chattrail-mermaid-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 7px 8px !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1) !important;
+  background: #f8fafc !important;
+  color: #334155 !important;
+  font: 12px/1.2 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.chattrail-mermaid-toolbar button {
+  border: 1px solid rgba(15, 23, 42, 0.16) !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  cursor: pointer !important;
+  font: inherit !important;
+  padding: 4px 8px !important;
+}
+
+.chattrail-mermaid-preview {
+  padding: 10px !important;
+  color: #0f172a !important;
+  font: 12px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+}
+
+.chattrail-mermaid-preview svg {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+.chattrail-wide-chat main {
+  max-width: none !important;
+}
+
+.chattrail-large-font main,
+.chattrail-large-font article,
+.chattrail-large-font [data-message-author-role] {
+  font-size: 17px !important;
+}
+
+.chattrail-effect-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+.chattrail-effect-piece {
+  position: absolute !important;
+  top: -24px !important;
+  color: rgba(20, 184, 166, 0.72) !important;
+  font: 18px/1 serif !important;
+  animation: chattrail-fall linear infinite !important;
+}
+
+@keyframes chattrail-fall {
+  from {
+    transform: translateY(-24px) rotate(0deg);
+  }
+  to {
+    transform: translateY(calc(100vh + 48px)) rotate(360deg);
+  }
+}
