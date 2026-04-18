@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "ChatTrail",
+  "version": "0.1.0",
+  "description": "Timeline navigation for AI chat platforms.",
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://doubao.com/*",
+    "https://www.doubao.com/*",
+    "https://*.doubao.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://doubao.com/*",
+        "https://www.doubao.com/*",
+        "https://*.doubao.com/*"
+      ],
+      "js": [
+        "src/content/timeline.js"
+      ],
+      "css": [
+        "src/content/timeline.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "ChatTrail",
+    "default_popup": "src/popup/popup.html"
+  }
+}

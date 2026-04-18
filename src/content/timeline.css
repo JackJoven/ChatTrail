@@ -1,0 +1,5 @@
+.chattrail-message-highlight {
+  outline: 2px solid #14b8a6 !important;
+  outline-offset: 6px !important;
+  transition: outline-color 180ms ease, outline-offset 180ms ease !important;
+}
