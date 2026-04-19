@@ -64,16 +64,10 @@
         "[data-testid*='user']",
         "[data-testid*='question']",
         "[data-testid*='human']",
-        "[class*='user']",
-        "[class*='User']",
-        "[class*='question']",
-        "[class*='Question']",
-        "[class*='human']",
-        "[class*='Human']",
-        "[class*='mine']",
-        "[class*='Mine']",
-        "[class*='self']",
-        "[class*='Self']"
+        "[aria-label*='用户']",
+        "[aria-label*='我的']",
+        "[aria-label*='提问']",
+        "[aria-label*='question']"
       ]
     }
   ];
@@ -651,18 +645,57 @@
   }
 
   function extractDoubaoUserMessages(adapter, roots) {
-    const explicitUserElements = queryWithinRoots(roots, adapter.userMessageSelectors)
-      .filter((element) => !isExplicitAssistantElement(element));
+    const explicitUserElements = uniqueElements([
+      ...queryWithinRoots(roots, adapter.userMessageSelectors),
+      ...queryDoubaoUserClassElements(roots)
+    ]).filter(isDoubaoUserMessageCandidate);
+
     const explicitUserMessages = normalizeMessageElements(explicitUserElements, adapter.id, TIMELINE_ROLE);
     if (explicitUserMessages.length > 0) {
       return explicitUserMessages;
     }
 
     const rightAlignedUserElements = extractHeuristicMessageElements(roots)
-      .filter((element) => !isExplicitAssistantElement(element))
-      .filter((element) => isExplicitUserElement(element) || isRightAlignedUserBubble(element));
+      .filter(isDoubaoUserMessageCandidate);
 
     return normalizeMessageElements(rightAlignedUserElements, adapter.id, TIMELINE_ROLE);
+  }
+
+  function queryDoubaoUserClassElements(roots) {
+    const candidates = uniqueElements(roots.flatMap((root) => {
+      return Array.from(root.querySelectorAll("[class]"));
+    }));
+
+    return candidates.filter((element) => {
+      const tokens = classTokens(element);
+      return tokens.some((token) => {
+        return /^(user|human|question|query|prompt|mine|self|ask|me|my)$/i.test(token);
+      });
+    });
+  }
+
+  function isDoubaoUserMessageCandidate(element) {
+    if (!(element instanceof HTMLElement) || state.root?.contains(element) || !isVisibleElement(element)) {
+      return false;
+    }
+
+    if (isExplicitAssistantElement(element)) {
+      return false;
+    }
+
+    const text = normalizeText(element.innerText || element.textContent || "");
+    if (text.length < MIN_TEXT_LENGTH || text.length > 8000) {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const root = resolveRoleRoot(element);
+    const rootRect = root.getBoundingClientRect();
+    if (rect.width < 80 || rect.height < 14 || rect.width > rootRect.width * 0.88) {
+      return false;
+    }
+
+    return hasExplicitUserMarker(element) || isRightAlignedUserBubble(element);
   }
 
   function queryWithinRoots(roots, selectors) {
@@ -960,7 +993,16 @@
   }
 
   function isExplicitUserElement(element) {
-    return /\b(user|human|question|query|prompt|ask|self|mine|me|my|我|用户)\b/i.test(elementSignature(element));
+    return hasExplicitUserMarker(element);
+  }
+
+  function hasExplicitUserMarker(element) {
+    const signature = elementSignature(element);
+    if (/\b(human|question|query|prompt|ask|mine|self|me|my|我|用户|我的|提问)\b/i.test(signature)) {
+      return true;
+    }
+
+    return classTokens(element).some((token) => /^(user|human|question|query|prompt|mine|self|ask|me|my)$/i.test(token));
   }
 
   function isExplicitAssistantElement(element) {
@@ -1021,6 +1063,13 @@
         .map((attribute) => `${attribute.name}=${attribute.value}`)
         .join(" ")
     ].join(" ");
+  }
+
+  function classTokens(element) {
+    return String(element.className || "")
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean);
   }
 
   function isVisibleElement(element) {

@@ -71,6 +71,7 @@
     createToolbar();
     createQuoteButton();
     attachStorageListener();
+    attachRuntimeMessageListener();
     applySettings();
     scanPage();
     attachObservers();
@@ -327,7 +328,10 @@
       return;
     }
 
-    const action = button.dataset.action;
+    runAction(button.dataset.action);
+  }
+
+  function runAction(action) {
     if (action === "prompts") {
       togglePromptPanel();
       return;
@@ -507,6 +511,28 @@
       if (changes[STORAGE_KEYS.settings] || changes[STORAGE_KEYS.prompts]) {
         refreshStateFromStorage();
       }
+    });
+  }
+
+  function attachRuntimeMessageListener() {
+    const api = getChromeApi();
+    if (!api?.runtime?.onMessage) {
+      return;
+    }
+
+    api.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (!message || message.source !== "chattrail-popup") {
+        return false;
+      }
+
+      try {
+        runAction(message.action);
+        sendResponse({ ok: true });
+      } catch (error) {
+        sendResponse({ ok: false, error: error?.message || String(error) });
+      }
+
+      return true;
     });
   }
 
@@ -1076,8 +1102,28 @@
   }
 
   function openOptionsPage() {
-    if (getChromeApi()?.runtime?.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
+    const api = getChromeApi();
+    const optionsUrl = api?.runtime?.getURL?.("src/options/options.html");
+
+    if (api?.runtime?.openOptionsPage) {
+      try {
+        const result = api.runtime.openOptionsPage();
+        if (result?.catch) {
+          result.catch(() => openOptionsUrl(optionsUrl));
+        }
+        return;
+      } catch (error) {
+        openOptionsUrl(optionsUrl);
+        return;
+      }
+    }
+
+    openOptionsUrl(optionsUrl);
+  }
+
+  function openOptionsUrl(optionsUrl) {
+    if (optionsUrl) {
+      window.open(optionsUrl, "_blank", "noopener");
       return;
     }
 

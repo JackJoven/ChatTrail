@@ -16,7 +16,13 @@
         <li>提示词库、引用回复、公式复制</li>
         <li><kbd>j</kbd>/<kbd>k</kbd>：下一条/上一条提问</li>
       </ul>
+      <div class="actions">
+        <button data-action="prompts" type="button">提示词库</button>
+        <button data-action="export-md" type="button">导出 Markdown</button>
+        <button data-action="export-json" type="button">导出 JSON</button>
+      </div>
       <button id="open-options" type="button">打开设置</button>
+      <p id="status" class="status" role="status"></p>
     </main>
     <script src="./popup.js"></script>
   </body>

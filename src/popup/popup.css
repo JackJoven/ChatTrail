@@ -37,7 +37,6 @@ ul {
 
 button {
   width: 100%;
-  margin-top: 12px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #ffffff;
@@ -47,9 +46,27 @@ button {
   padding: 9px 10px;
 }
 
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 button:hover {
   background: #ecfeff;
   border-color: #14b8a6;
+}
+
+#open-options {
+  margin-top: 8px;
+}
+
+.status {
+  min-height: 17px;
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 kbd {

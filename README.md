@@ -24,6 +24,16 @@ ChatTrail is a browser extension prototype for AI chat workflow enhancements.
 - Lightweight Mermaid detection and preview for simple flowchart and sequence diagrams.
 - User message timestamps, title sync, chat width/font tweaks, and optional visual effects.
 
+## How to Use
+
+- Open ChatGPT or Doubao after loading the extension.
+- Use the right-side timeline to jump between your own questions.
+- Click the ChatTrail extension icon to open quick actions: prompt library, Markdown export, JSON export, and settings.
+- On supported chat pages, a ChatTrail toolbar also appears near the lower-left corner with the same quick actions.
+- Select text in a conversation to show the quote-reply button.
+- Hover a recognized formula to copy LaTeX.
+- Open settings to manage prompts, feature switches, visual effects, and backup/restore.
+
 ## Local Installation
 
 1. Open Chrome or Edge.
