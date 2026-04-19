@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ChatTrail",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Timeline navigation for AI chat platforms.",
   "permissions": [
     "activeTab",
@@ -37,6 +37,9 @@
   "options_ui": {
     "page": "src/options/options.html",
     "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "src/background/service-worker.js"
   },
   "action": {
     "default_title": "ChatTrail",

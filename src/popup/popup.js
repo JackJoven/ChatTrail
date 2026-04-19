@@ -30,10 +30,15 @@ async function sendActionToCurrentTab(action) {
 }
 
 async function openSettings() {
-  const url = chrome.runtime.getURL("src/options/options.html");
-
   try {
-    await chrome.tabs.create({ url });
+    const response = await chrome.runtime.sendMessage({
+      source: "chattrail",
+      action: "open-options"
+    });
+    if (!response?.ok) {
+      setStatus(response?.error || "设置页打开失败。");
+      return;
+    }
     window.close();
   } catch (error) {
     setStatus("设置页打开失败，请在扩展详情页里打开。");

@@ -362,6 +362,11 @@
       return;
     }
 
+    if (action === "copy-debug") {
+      copyDebugInfo();
+      return;
+    }
+
     if (action === "settings") {
       openOptionsPage();
     }
@@ -830,6 +835,43 @@
     showToast("已导出 Markdown");
   }
 
+  async function copyDebugInfo() {
+    const candidates = Array.from(document.querySelectorAll("main [class], [role='main'] [class], #root [class], [data-testid], [aria-label]"))
+      .filter((element) => !state.root?.contains(element))
+      .filter(isVisibleElement)
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName.toLowerCase(),
+          id: element.id || "",
+          className: truncateText(String(element.className || ""), 160),
+          testId: element.getAttribute("data-testid") || "",
+          ariaLabel: element.getAttribute("aria-label") || "",
+          rect: {
+            left: Math.round(rect.left),
+            top: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          },
+          text: truncateText(getCleanElementText(element), 180)
+        };
+      })
+      .filter((item) => item.text.length >= 4 && item.rect.width >= 40 && item.rect.height >= 10)
+      .sort((a, b) => a.rect.top - b.rect.top)
+      .slice(0, 60);
+
+    const payload = {
+      platform: state.platform.id,
+      url: window.location.href,
+      title: document.title,
+      capturedAt: new Date().toISOString(),
+      candidates
+    };
+
+    await copyText(JSON.stringify(payload, null, 2));
+    showToast("已复制诊断信息");
+  }
+
   function extractMessages() {
     const directChatGpt = Array.from(document.querySelectorAll("[data-message-author-role]"))
       .filter(isVisibleElement)
@@ -1103,31 +1145,19 @@
 
   function openOptionsPage() {
     const api = getChromeApi();
-    const optionsUrl = api?.runtime?.getURL?.("src/options/options.html");
-
-    if (api?.runtime?.openOptionsPage) {
-      try {
-        const result = api.runtime.openOptionsPage();
-        if (result?.catch) {
-          result.catch(() => openOptionsUrl(optionsUrl));
-        }
-        return;
-      } catch (error) {
-        openOptionsUrl(optionsUrl);
-        return;
-      }
-    }
-
-    openOptionsUrl(optionsUrl);
-  }
-
-  function openOptionsUrl(optionsUrl) {
-    if (optionsUrl) {
-      window.open(optionsUrl, "_blank", "noopener");
+    if (!api?.runtime?.sendMessage) {
+      showToast("请点击扩展图标打开设置");
       return;
     }
 
-    showToast("请从扩展详情页打开设置");
+    api.runtime.sendMessage({
+      source: "chattrail",
+      action: "open-options"
+    }, (response) => {
+      if (api.runtime.lastError || !response?.ok) {
+        showToast("设置页打开失败，请点击扩展图标打开设置");
+      }
+    });
   }
 
   async function storageGet(defaults) {

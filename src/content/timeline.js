@@ -645,20 +645,134 @@
   }
 
   function extractDoubaoUserMessages(adapter, roots) {
+    const conversationElements = extractDoubaoConversationElements(adapter, roots);
+    const selectedUserTurns = selectDoubaoUserTurns(conversationElements);
+    if (selectedUserTurns.length > 0) {
+      return normalizeMessageElements(selectedUserTurns, adapter.id, TIMELINE_ROLE);
+    }
+
     const explicitUserElements = uniqueElements([
       ...queryWithinRoots(roots, adapter.userMessageSelectors),
       ...queryDoubaoUserClassElements(roots)
     ]).filter(isDoubaoUserMessageCandidate);
 
-    const explicitUserMessages = normalizeMessageElements(explicitUserElements, adapter.id, TIMELINE_ROLE);
-    if (explicitUserMessages.length > 0) {
-      return explicitUserMessages;
+    return normalizeMessageElements(explicitUserElements, adapter.id, TIMELINE_ROLE);
+  }
+
+  function extractDoubaoConversationElements(adapter, roots) {
+    const selectorElements = uniqueElements(roots.flatMap((root) => {
+      return adapter.messageSelectors.flatMap((selector) => Array.from(root.querySelectorAll(selector)));
+    }));
+
+    const heuristicElements = extractHeuristicMessageElements(roots);
+    return removeOverlappingDuplicates(uniqueElements([
+      ...selectorElements,
+      ...heuristicElements
+    ]).filter(isDoubaoConversationElement))
+      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+      .slice(0, 240);
+  }
+
+  function selectDoubaoUserTurns(elements) {
+    if (elements.length === 0) {
+      return [];
     }
 
-    const rightAlignedUserElements = extractHeuristicMessageElements(roots)
-      .filter(isDoubaoUserMessageCandidate);
+    const explicitUsers = elements.filter((element) => {
+      return isDoubaoUserMessageCandidate(element) && hasExplicitUserMarker(element);
+    });
 
-    return normalizeMessageElements(rightAlignedUserElements, adapter.id, TIMELINE_ROLE);
+    if (explicitUsers.length > 0 && explicitUsers.length < elements.length) {
+      return explicitUsers;
+    }
+
+    const scored = elements.map((element, index) => ({
+      element,
+      index,
+      score: scoreDoubaoUserLikelihood(element)
+    }));
+
+    const strongUsers = scored
+      .filter((item) => item.score >= 3)
+      .map((item) => item.element);
+
+    if (strongUsers.length > 0 && strongUsers.length < elements.length) {
+      return strongUsers;
+    }
+
+    const even = scored.filter((item) => item.index % 2 === 0);
+    const odd = scored.filter((item) => item.index % 2 === 1);
+    const evenScore = sumScores(even);
+    const oddScore = sumScores(odd);
+    const selected = oddScore > evenScore ? odd : even;
+
+    return selected
+      .filter((item) => item.score > -2)
+      .map((item) => item.element);
+  }
+
+  function isDoubaoConversationElement(element) {
+    if (!(element instanceof HTMLElement) || state.root?.contains(element) || !isVisibleElement(element)) {
+      return false;
+    }
+
+    if (element.closest("nav, aside, header, footer, menu, dialog, [role='navigation'], [role='banner']")) {
+      return false;
+    }
+
+    const text = normalizeText(element.innerText || element.textContent || "");
+    if (text.length < MIN_TEXT_LENGTH || text.length > 20000) {
+      return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    const root = resolveRoleRoot(element);
+    const rootRect = root.getBoundingClientRect();
+    if (rect.width < 80 || rect.height < 14 || rect.width > rootRect.width * 0.96) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function scoreDoubaoUserLikelihood(element) {
+    let score = 0;
+
+    if (hasExplicitUserMarker(element)) {
+      score += 4;
+    }
+
+    if (isExplicitAssistantElement(element)) {
+      score -= 5;
+    }
+
+    if (isRightAlignedUserBubble(element)) {
+      score += 2;
+    }
+
+    if (isLeftAlignedAssistantBubble(element)) {
+      score -= 2;
+    }
+
+    const text = normalizeText(element.innerText || element.textContent || "");
+    if (text.length > 1200) {
+      score -= 1;
+    }
+
+    if (element.querySelector("pre, code, table, ol, ul")) {
+      score -= 1;
+    }
+
+    const interactiveCount = element.querySelectorAll("button, a, input, textarea, select").length;
+    if (interactiveCount > 2) {
+      score -= 1;
+    }
+
+    return score;
+  }
+
+  function sumScores(items) {
+    return items.reduce((sum, item) => sum + item.score, 0);
   }
 
   function queryDoubaoUserClassElements(roots) {
