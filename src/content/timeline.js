@@ -53,8 +53,8 @@
       messageSelectors: [
         "[data-testid*='message']",
         "[data-testid*='conversation']",
-        "[class*='message']",
-        "[class*='Message']",
+        "[class~='message']",
+        "[class~='Message']",
         "[class*='bubble']",
         "[class*='Bubble']",
         "[class*='answer']",
@@ -665,10 +665,13 @@
     }));
 
     const heuristicElements = extractHeuristicMessageElements(roots);
-    return removeOverlappingDuplicates(uniqueElements([
+    const turnElements = uniqueElements([
       ...selectorElements,
       ...heuristicElements
-    ]).filter(isDoubaoConversationElement))
+    ].map(resolveDoubaoTurnElement))
+      .filter(isDoubaoConversationElement);
+
+    return removeDoubaoDuplicateTurns(turnElements)
       .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
       .slice(0, 240);
   }
@@ -724,6 +727,105 @@
     }
 
     return true;
+  }
+
+  function resolveDoubaoTurnElement(element) {
+    if (!(element instanceof HTMLElement)) {
+      return element;
+    }
+
+    const candidates = [];
+    let current = element;
+    while (current && current !== document.body && current !== document.documentElement) {
+      if (isDoubaoTurnLikeElement(current)) {
+        candidates.push(current);
+      }
+      current = current.parentElement;
+    }
+
+    if (candidates.length === 0) {
+      return element;
+    }
+
+    return candidates
+      .filter((candidate) => {
+        const root = resolveRoleRoot(candidate);
+        const rootRect = root.getBoundingClientRect();
+        const rect = candidate.getBoundingClientRect();
+        return rootRect.width <= 0 || rect.width <= rootRect.width * 0.94;
+      })
+      .sort((a, b) => elementArea(b) - elementArea(a))[0] || candidates[0];
+  }
+
+  function isDoubaoTurnLikeElement(element) {
+    const signature = elementSignature(element);
+    if (/\b(message|bubble|question|answer|reply|conversation)\b/i.test(signature)) {
+      return true;
+    }
+
+    return classTokens(element).some((token) => {
+      return /^(message|bubble|question|answer|reply|user|human|assistant|bot)$/i.test(token);
+    });
+  }
+
+  function removeDoubaoDuplicateTurns(elements) {
+    const result = [];
+
+    elements.forEach((element) => {
+      const duplicateIndex = result.findIndex((existing) => {
+        const sameText = normalizeText(existing.innerText || existing.textContent || "") === normalizeText(element.innerText || element.textContent || "");
+        const contains = existing.contains(element) || element.contains(existing);
+        const overlap = rectangleOverlapRatio(existing.getBoundingClientRect(), element.getBoundingClientRect()) > 0.82;
+        return sameText || contains || overlap;
+      });
+
+      if (duplicateIndex === -1) {
+        result.push(element);
+        return;
+      }
+
+      if (shouldPreferDoubaoTurn(element, result[duplicateIndex])) {
+        result[duplicateIndex] = element;
+      }
+    });
+
+    return result;
+  }
+
+  function shouldPreferDoubaoTurn(candidate, existing) {
+    const candidateScore = scoreDoubaoTurnContainer(candidate);
+    const existingScore = scoreDoubaoTurnContainer(existing);
+    if (candidateScore !== existingScore) {
+      return candidateScore > existingScore;
+    }
+
+    return elementArea(candidate) > elementArea(existing);
+  }
+
+  function scoreDoubaoTurnContainer(element) {
+    let score = 0;
+    const signature = elementSignature(element);
+
+    if (/\b(question|answer|bubble)\b/i.test(signature)) {
+      score += 3;
+    }
+
+    if (/\b(message|reply)\b/i.test(signature)) {
+      score += 1;
+    }
+
+    if (element.closest("nav, aside, header, footer, menu")) {
+      score -= 4;
+    }
+
+    const root = resolveRoleRoot(element);
+    const rootRect = root.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    if (rootRect.width > 0 && rect.width > rootRect.width * 0.92) {
+      score -= 2;
+    }
+
+    return score;
   }
 
   function scoreDoubaoUserLikelihood(element) {
@@ -1099,11 +1201,11 @@
 
   function hasExplicitUserMarker(element) {
     const signature = elementSignature(element);
-    if (/\b(human|question|query|prompt|ask|mine|self|me|my|我|用户|我的|提问)\b/i.test(signature)) {
+    if (/\b(human|question|mine|self|我|用户|我的|提问)\b/i.test(signature)) {
       return true;
     }
 
-    return classTokens(element).some((token) => /^(user|human|question|query|prompt|mine|self|ask|me|my)$/i.test(token));
+    return classTokens(element).some((token) => /^(user|human|question|mine|self)$/i.test(token));
   }
 
   function isExplicitAssistantElement(element) {
