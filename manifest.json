@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ChatTrail",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Timeline navigation for AI chat platforms.",
   "permissions": [
     "activeTab",

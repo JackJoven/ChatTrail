@@ -34,6 +34,7 @@ ChatTrail is a browser extension prototype for AI chat workflow enhancements.
 - Select text in a conversation to show the quote-reply button.
 - Hover a recognized formula to copy LaTeX.
 - Open settings to manage prompts, feature switches, visual effects, and backup/restore.
+- After reloading the extension in Edge, refresh all open ChatGPT and Doubao tabs so old content scripts are removed.
 
 ## Local Installation
 

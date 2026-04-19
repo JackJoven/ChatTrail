@@ -1150,19 +1150,32 @@
       return;
     }
 
-    api.runtime.sendMessage({
-      source: "chattrail",
-      action: "open-options"
-    }, (response) => {
-      if (api.runtime.lastError || !response?.ok) {
+    try {
+      api.runtime.sendMessage({
+        source: "chattrail",
+        action: "open-options"
+      }, (response) => {
+        if (api.runtime.lastError || !response?.ok) {
+          showToast("设置页打开失败，请点击扩展图标打开设置");
+        }
+      });
+    } catch (error) {
+      if (!isExtensionContextInvalidated(error)) {
         showToast("设置页打开失败，请点击扩展图标打开设置");
       }
-    });
+    }
   }
 
   async function storageGet(defaults) {
     if (getChromeApi()?.storage?.local) {
-      return await chrome.storage.local.get(defaults);
+      try {
+        return await chrome.storage.local.get(defaults);
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) {
+          return defaults;
+        }
+        throw error;
+      }
     }
 
     const result = {};
@@ -1175,8 +1188,15 @@
 
   async function storageSet(values) {
     if (getChromeApi()?.storage?.local) {
-      await chrome.storage.local.set(values);
-      return;
+      try {
+        await chrome.storage.local.set(values);
+        return;
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) {
+          return;
+        }
+        throw error;
+      }
     }
 
     Object.entries(values).forEach(([key, value]) => {
@@ -1186,6 +1206,10 @@
 
   function getChromeApi() {
     return typeof chrome === "undefined" ? null : chrome;
+  }
+
+  function isExtensionContextInvalidated(error) {
+    return /Extension context invalidated/i.test(error?.message || String(error || ""));
   }
 
   function normalizePromptList(value) {

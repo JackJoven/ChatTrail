@@ -1,3 +1,11 @@
+window.addEventListener("unhandledrejection", (event) => {
+  const message = event.reason?.message || String(event.reason || "");
+  if (/Could not create an options page|Extension context invalidated/i.test(message)) {
+    event.preventDefault();
+    setStatus("扩展刚刷新过，请刷新当前聊天页后再试。");
+  }
+});
+
 document.addEventListener("click", async (event) => {
   const actionButton = event.target.closest("[data-action]");
   if (actionButton) {
@@ -25,26 +33,35 @@ async function sendActionToCurrentTab(action) {
 
     setStatus(response?.ok ? "已发送到当前页面。" : (response?.error || "当前页面没有响应。"));
   } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      setStatus("扩展刚刷新过，请刷新当前聊天页。");
+      return;
+    }
+
     setStatus("请先打开 ChatGPT 或豆包页面，并刷新扩展。");
   }
 }
 
 async function openSettings() {
+  const url = chrome.runtime.getURL("src/options/options.html");
+
   try {
-    const response = await chrome.runtime.sendMessage({
-      source: "chattrail",
-      action: "open-options"
-    });
-    if (!response?.ok) {
-      setStatus(response?.error || "设置页打开失败。");
-      return;
-    }
+    await chrome.tabs.create({ url });
     window.close();
   } catch (error) {
+    if (isExtensionContextInvalidated(error)) {
+      setStatus("扩展刚刷新过，请重新打开弹窗。");
+      return;
+    }
+
     setStatus("设置页打开失败，请在扩展详情页里打开。");
   }
 }
 
 function setStatus(message) {
   document.querySelector("#status").textContent = message;
+}
+
+function isExtensionContextInvalidated(error) {
+  return /Extension context invalidated/i.test(error?.message || String(error || ""));
 }

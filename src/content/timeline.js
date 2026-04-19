@@ -692,21 +692,12 @@
       score: scoreDoubaoUserLikelihood(element)
     }));
 
-    const strongUsers = scored
-      .filter((item) => item.score >= 3)
-      .map((item) => item.element);
-
-    if (strongUsers.length > 0 && strongUsers.length < elements.length) {
-      return strongUsers;
-    }
-
+    // Doubao conversations normally alternate user/assistant. When explicit
+    // markers are unavailable, prefer the first turn sequence instead of
+    // flipping based on layout; the previous layout-scored fallback could pick
+    // assistant answers on real Doubao pages.
     const even = scored.filter((item) => item.index % 2 === 0);
-    const odd = scored.filter((item) => item.index % 2 === 1);
-    const evenScore = sumScores(even);
-    const oddScore = sumScores(odd);
-    const selected = oddScore > evenScore ? odd : even;
-
-    return selected
+    return even
       .filter((item) => item.score > -2)
       .map((item) => item.element);
   }
@@ -769,10 +760,6 @@
     }
 
     return score;
-  }
-
-  function sumScores(items) {
-    return items.reduce((sum, item) => sum + item.score, 0);
   }
 
   function queryDoubaoUserClassElements(roots) {
