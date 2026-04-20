@@ -10,6 +10,8 @@
     prompts: "chattrail.prompts",
     settings: "chattrail.settings"
   };
+  const TOOLBAR_POSITION_KEY = "chattrail.toolbar.position";
+  const FLOATING_MARGIN = 8;
 
   const DEFAULT_SETTINGS = {
     quoteReply: true,
@@ -112,6 +114,14 @@
           box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
           padding: 7px;
           backdrop-filter: blur(10px);
+          cursor: grab;
+          touch-action: none;
+          user-select: none;
+        }
+
+        .toolbar.dragging,
+        .panel-header.dragging {
+          cursor: grabbing;
         }
 
         button {
@@ -155,6 +165,11 @@
           display: block;
         }
 
+        .panel.below {
+          bottom: auto;
+          top: 48px;
+        }
+
         .panel-header {
           display: flex;
           align-items: center;
@@ -163,6 +178,9 @@
           padding: 10px 12px;
           border-bottom: 1px solid rgba(15, 23, 42, 0.1);
           background: #f8fafc;
+          cursor: grab;
+          touch-action: none;
+          user-select: none;
         }
 
         .panel-title {
@@ -252,6 +270,11 @@
         .toast.visible {
           display: block;
         }
+
+        .toast.below {
+          bottom: auto;
+          top: 48px;
+        }
       </style>
       <div class="toolbar">
         <span class="brand">ChatTrail</span>
@@ -279,9 +302,27 @@
     `;
 
     document.documentElement.appendChild(host);
+    initializeFloatingPosition(host, TOOLBAR_POSITION_KEY, () => {
+      const rect = host.getBoundingClientRect();
+      return {
+        left: 14,
+        top: window.innerHeight - rect.height - 14
+      };
+    });
+
     state.root = host;
     state.shadow = shadow;
     state.promptPanel = shadow.querySelector(".panel");
+
+    const toolbar = shadow.querySelector(".toolbar");
+    const panelHeader = shadow.querySelector(".panel-header");
+    makeFloatingDraggable(host, toolbar, TOOLBAR_POSITION_KEY, toolbar);
+    makeFloatingDraggable(host, panelHeader, TOOLBAR_POSITION_KEY, panelHeader);
+    updateFloatingPanelPlacement();
+    window.addEventListener("resize", () => {
+      clampFloatingPosition(host, TOOLBAR_POSITION_KEY);
+      updateFloatingPanelPlacement();
+    }, { passive: true });
 
     shadow.addEventListener("click", handleToolbarClick);
     shadow.querySelector("[data-role='prompt-search']").addEventListener("input", renderPromptList);
@@ -380,6 +421,7 @@
 
     const isOpen = state.promptPanel.classList.toggle("open");
     if (isOpen) {
+      updateFloatingPanelPlacement();
       renderPromptList();
     }
   }
@@ -1238,9 +1280,145 @@
       return;
     }
 
+    updateFloatingPanelPlacement();
     toast.textContent = message;
     toast.classList.add("visible");
     window.setTimeout(() => toast.classList.remove("visible"), 1800);
+  }
+
+  function initializeFloatingPosition(host, key, getDefaultPosition) {
+    const savedPosition = readFloatingPosition(key);
+    const position = savedPosition || getDefaultPosition();
+    setFloatingPosition(host, clampFloatingPoint(position, host));
+  }
+
+  function makeFloatingDraggable(host, handle, key, classTarget) {
+    if (!host || !handle) {
+      return;
+    }
+
+    let dragState = null;
+
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || shouldIgnoreDragStart(event.target)) {
+        return;
+      }
+
+      const rect = host.getBoundingClientRect();
+      dragState = {
+        pointerId: event.pointerId,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top
+      };
+
+      classTarget?.classList.add("dragging");
+      handle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    });
+
+    handle.addEventListener("pointermove", (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      const nextPosition = clampFloatingPoint({
+        left: event.clientX - dragState.offsetX,
+        top: event.clientY - dragState.offsetY
+      }, host);
+
+      setFloatingPosition(host, nextPosition);
+      updateFloatingPanelPlacement();
+      event.preventDefault();
+    });
+
+    const finishDrag = (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      dragState = null;
+      classTarget?.classList.remove("dragging");
+      handle.releasePointerCapture?.(event.pointerId);
+      writeFloatingPosition(key, currentFloatingPosition(host));
+      updateFloatingPanelPlacement();
+      event.preventDefault();
+    };
+
+    handle.addEventListener("pointerup", finishDrag);
+    handle.addEventListener("pointercancel", finishDrag);
+  }
+
+  function shouldIgnoreDragStart(target) {
+    return Boolean(target?.closest?.("button, input, textarea, select, a, [contenteditable='true'], [role='textbox']"));
+  }
+
+  function clampFloatingPosition(host, key) {
+    if (!host) {
+      return;
+    }
+
+    const position = clampFloatingPoint(currentFloatingPosition(host), host);
+    setFloatingPosition(host, position);
+    writeFloatingPosition(key, position);
+  }
+
+  function clampFloatingPoint(position, host) {
+    const rect = host.getBoundingClientRect();
+    const maxLeft = Math.max(FLOATING_MARGIN, window.innerWidth - rect.width - FLOATING_MARGIN);
+    const maxTop = Math.max(FLOATING_MARGIN, window.innerHeight - rect.height - FLOATING_MARGIN);
+
+    return {
+      left: Math.round(clamp(position.left, FLOATING_MARGIN, maxLeft)),
+      top: Math.round(clamp(position.top, FLOATING_MARGIN, maxTop))
+    };
+  }
+
+  function currentFloatingPosition(host) {
+    const rect = host.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top
+    };
+  }
+
+  function setFloatingPosition(host, position) {
+    host.style.left = `${position.left}px`;
+    host.style.top = `${position.top}px`;
+    host.style.right = "auto";
+    host.style.bottom = "auto";
+    host.style.transform = "none";
+  }
+
+  function updateFloatingPanelPlacement() {
+    if (!state.root || !state.shadow) {
+      return;
+    }
+
+    const rootRect = state.root.getBoundingClientRect();
+    const shouldOpenBelow = rootRect.top < 280;
+    state.promptPanel?.classList.toggle("below", shouldOpenBelow);
+    state.shadow.querySelector(".toast")?.classList.toggle("below", shouldOpenBelow);
+  }
+
+  function readFloatingPosition(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "null");
+      if (Number.isFinite(value?.left) && Number.isFinite(value?.top)) {
+        return value;
+      }
+    } catch (error) {
+      return null;
+    }
+
+    return null;
+  }
+
+  function writeFloatingPosition(key, position) {
+    try {
+      localStorage.setItem(key, JSON.stringify(position));
+    } catch (error) {
+      // Position persistence is optional; the toolbar remains draggable even if storage is blocked.
+    }
   }
 
   function isVisibleElement(element) {
@@ -1284,6 +1462,10 @@
     }
 
     return "消息";
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
   }
 
   function safeFileName(name) {

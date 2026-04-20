@@ -12,6 +12,8 @@
   const ACTIVE_SCAN_THROTTLE_MS = 120;
   const HIGHLIGHT_MS = 1200;
   const TIMELINE_ROLE = "user";
+  const TIMELINE_POSITION_KEY = "chattrail.timeline.position";
+  const FLOATING_MARGIN = 8;
 
   const PLATFORM_ADAPTERS = [
     {
@@ -104,6 +106,7 @@
     attachKeyboardNavigation();
     window.addEventListener("scroll", scheduleActiveScan, { passive: true });
     window.addEventListener("resize", scheduleRebuild, { passive: true });
+    window.addEventListener("resize", () => clampFloatingPosition(state.root, TIMELINE_POSITION_KEY), { passive: true });
   }
 
   function detectPlatform() {
@@ -158,6 +161,13 @@
           padding: 7px 5px 6px;
           border-bottom: 1px solid rgba(15, 23, 42, 0.1);
           background: #f8fafc;
+          cursor: grab;
+          touch-action: none;
+          user-select: none;
+        }
+
+        .panel.dragging .header {
+          cursor: grabbing;
         }
 
         .platform {
@@ -280,10 +290,10 @@
 
         .tooltip {
           position: fixed;
-          right: 78px;
+          left: 8px;
           top: 50%;
           width: 280px;
-          max-width: calc(100vw - 120px);
+          max-width: calc(100vw - 16px);
           box-sizing: border-box;
           border: 1px solid rgba(15, 23, 42, 0.16);
           border-radius: 8px;
@@ -295,6 +305,7 @@
           font-size: 12px;
           line-height: 1.45;
           padding: 10px 12px;
+          pointer-events: none;
           transform: translateY(-50%);
           white-space: pre-wrap;
         }
@@ -329,6 +340,13 @@
     `;
 
     document.documentElement.appendChild(host);
+    initializeFloatingPosition(host, TIMELINE_POSITION_KEY, () => {
+      const rect = host.getBoundingClientRect();
+      return {
+        left: window.innerWidth - rect.width - 14,
+        top: Math.round((window.innerHeight - rect.height) / 2)
+      };
+    });
 
     state.root = host;
     state.shadow = shadow;
@@ -339,11 +357,15 @@
     state.tooltipEl = shadow.querySelector(".tooltip");
     state.platformEl.textContent = state.platform.name;
 
+    const panel = shadow.querySelector(".panel");
+    makeFloatingDraggable(host, shadow.querySelector(".header"), TIMELINE_POSITION_KEY, panel);
+
     shadow.querySelector(".toggle").addEventListener("click", () => {
       state.collapsed = !state.collapsed;
-      shadow.querySelector(".panel").classList.toggle("collapsed", state.collapsed);
+      panel.classList.toggle("collapsed", state.collapsed);
       shadow.querySelector(".toggle").textContent = state.collapsed ? "‹" : "›";
       hideTooltip();
+      window.requestAnimationFrame(() => clampFloatingPosition(host, TIMELINE_POSITION_KEY));
     });
   }
 
@@ -580,7 +602,20 @@
     text.textContent = message.preview;
 
     const nodeRect = node.getBoundingClientRect();
-    state.tooltipEl.style.top = `${Math.round(nodeRect.top + nodeRect.height / 2)}px`;
+    const tooltipWidth = Math.min(280, window.innerWidth - FLOATING_MARGIN * 2);
+    const shouldOpenLeft = nodeRect.left > window.innerWidth / 2;
+    const preferredLeft = shouldOpenLeft
+      ? nodeRect.left - tooltipWidth - 12
+      : nodeRect.right + 12;
+    const maxLeft = Math.max(FLOATING_MARGIN, window.innerWidth - tooltipWidth - FLOATING_MARGIN);
+    const top = clamp(
+      Math.round(nodeRect.top + nodeRect.height / 2),
+      FLOATING_MARGIN + 20,
+      Math.max(FLOATING_MARGIN + 20, window.innerHeight - FLOATING_MARGIN - 20)
+    );
+
+    state.tooltipEl.style.left = `${Math.round(clamp(preferredLeft, FLOATING_MARGIN, maxLeft))}px`;
+    state.tooltipEl.style.top = `${top}px`;
     state.tooltipEl.classList.add("visible");
   }
 
@@ -1317,6 +1352,130 @@
     }
 
     return "消息";
+  }
+
+  function initializeFloatingPosition(host, key, getDefaultPosition) {
+    const savedPosition = readFloatingPosition(key);
+    const position = savedPosition || getDefaultPosition();
+    setFloatingPosition(host, clampFloatingPoint(position, host));
+  }
+
+  function makeFloatingDraggable(host, handle, key, classTarget) {
+    if (!host || !handle) {
+      return;
+    }
+
+    let dragState = null;
+
+    handle.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || shouldIgnoreDragStart(event.target)) {
+        return;
+      }
+
+      const rect = host.getBoundingClientRect();
+      dragState = {
+        pointerId: event.pointerId,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top
+      };
+
+      hideTooltip();
+      classTarget?.classList.add("dragging");
+      handle.setPointerCapture?.(event.pointerId);
+      event.preventDefault();
+    });
+
+    handle.addEventListener("pointermove", (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      const nextPosition = clampFloatingPoint({
+        left: event.clientX - dragState.offsetX,
+        top: event.clientY - dragState.offsetY
+      }, host);
+
+      setFloatingPosition(host, nextPosition);
+      hideTooltip();
+      event.preventDefault();
+    });
+
+    const finishDrag = (event) => {
+      if (!dragState || event.pointerId !== dragState.pointerId) {
+        return;
+      }
+
+      dragState = null;
+      classTarget?.classList.remove("dragging");
+      handle.releasePointerCapture?.(event.pointerId);
+      writeFloatingPosition(key, currentFloatingPosition(host));
+      event.preventDefault();
+    };
+
+    handle.addEventListener("pointerup", finishDrag);
+    handle.addEventListener("pointercancel", finishDrag);
+  }
+
+  function shouldIgnoreDragStart(target) {
+    return Boolean(target?.closest?.("button, input, textarea, select, a, [contenteditable='true'], [role='textbox'], .node"));
+  }
+
+  function clampFloatingPosition(host, key) {
+    if (!host) {
+      return;
+    }
+
+    const position = clampFloatingPoint(currentFloatingPosition(host), host);
+    setFloatingPosition(host, position);
+    writeFloatingPosition(key, position);
+  }
+
+  function clampFloatingPoint(position, host) {
+    const rect = host.getBoundingClientRect();
+    const maxLeft = Math.max(FLOATING_MARGIN, window.innerWidth - rect.width - FLOATING_MARGIN);
+    const maxTop = Math.max(FLOATING_MARGIN, window.innerHeight - rect.height - FLOATING_MARGIN);
+
+    return {
+      left: Math.round(clamp(position.left, FLOATING_MARGIN, maxLeft)),
+      top: Math.round(clamp(position.top, FLOATING_MARGIN, maxTop))
+    };
+  }
+
+  function currentFloatingPosition(host) {
+    const rect = host.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top
+    };
+  }
+
+  function setFloatingPosition(host, position) {
+    host.style.left = `${position.left}px`;
+    host.style.top = `${position.top}px`;
+    host.style.right = "auto";
+    host.style.bottom = "auto";
+    host.style.transform = "none";
+  }
+
+  function readFloatingPosition(key) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "null");
+      if (Number.isFinite(value?.left) && Number.isFinite(value?.top)) {
+        return value;
+      }
+    } catch (error) {
+      return null;
+    }
+
+    return null;
+  }
+
+  function writeFloatingPosition(key, position) {
+    try {
+      localStorage.setItem(key, JSON.stringify(position));
+    } catch (error) {
+      // Position persistence is a convenience; dragging should still work when storage is blocked.
+    }
   }
 
   function clamp(value, min, max) {
