@@ -12,59 +12,7 @@
   };
   const TOOLBAR_POSITION_KEY = "chattrail.toolbar.position";
   const TOOLBAR_COLLAPSED_KEY = "chattrail.toolbar.collapsed";
-  const PAGE_STUDY_KEY_PREFIX = "chattrail.page-study";
   const FLOATING_MARGIN = 8;
-  const STUDY_GLOSSARY = [
-    ["时间轴", "timeline"],
-    ["提示词", "prompt"],
-    ["会话", "chat"],
-    ["对话", "conversation"],
-    ["问题", "question"],
-    ["答案", "answer"],
-    ["回复", "reply"],
-    ["引用", "quote"],
-    ["导出", "export"],
-    ["设置", "settings"],
-    ["用户", "user"],
-    ["助手", "assistant"],
-    ["模型", "model"],
-    ["代码", "code"],
-    ["函数", "function"],
-    ["变量", "variable"],
-    ["公式", "formula"],
-    ["文件", "file"],
-    ["标题", "title"],
-    ["消息", "message"],
-    ["内容", "content"],
-    ["方向", "direction"],
-    ["教育", "education"],
-    ["信息", "information"],
-    ["能力", "ability"],
-    ["翻译", "translation"],
-    ["学习", "learning"],
-    ["步骤", "step"],
-    ["示例", "example"],
-    ["错误", "error"],
-    ["修复", "fix"],
-    ["调试", "debug"],
-    ["优化", "optimize"],
-    ["性能", "performance"],
-    ["方案", "solution"],
-    ["数据", "data"],
-    ["文本", "text"],
-    ["按钮", "button"],
-    ["页面", "page"],
-    ["本地", "local"],
-    ["同步", "sync"],
-    ["开关", "toggle"],
-    ["预览", "preview"],
-    ["复制", "copy"],
-    ["搜索", "search"],
-    ["标签", "tag"],
-    ["输入框", "input"]
-  ];
-  const STUDY_ENTRIES = buildStudyEntries();
-  const STUDY_PATTERN = buildStudyPattern();
 
   const DEFAULT_SETTINGS = {
     quoteReply: true,
@@ -103,14 +51,7 @@
     observer: null,
     scanTimer: 0,
     effectLayer: null,
-    studyTooltipHost: null,
-    studyTooltipOriginalEl: null,
-    studyTooltipReplacementEl: null,
-    toolbarCollapsed: false,
-    pageStudyEnabled: true,
-    pageStudyKey: "",
-    titleBeforeSync: document.title,
-    syncedTitle: ""
+    toolbarCollapsed: false
   };
 
   if (!state.platform) {
@@ -131,12 +72,8 @@
     };
     state.prompts = normalizePromptList(stored[STORAGE_KEYS.prompts]);
     state.toolbarCollapsed = readBooleanFlag(TOOLBAR_COLLAPSED_KEY, false);
-    state.pageStudyKey = getPageStudyKey();
-    state.pageStudyEnabled = readBooleanFlag(state.pageStudyKey, true);
-    state.titleBeforeSync = document.title;
 
     createToolbar();
-    createStudyTooltip();
     createQuoteButton();
     attachStorageListener();
     attachRuntimeMessageListener();
@@ -201,7 +138,7 @@
           gap: 6px;
         }
 
-        .toolbar.collapsed .toolbar-actions > button:not(.study-toggle):not(.collapse-toggle) {
+        .toolbar.collapsed .toolbar-actions > button:not(.collapse-toggle) {
           display: none;
         }
 
@@ -228,25 +165,6 @@
           padding: 0 5px;
         }
 
-        .study-toggle.on {
-          background: #ecfeff;
-          border-color: rgba(20, 184, 166, 0.45);
-          color: #115e59;
-        }
-
-        .study-toggle.off {
-          background: #fff7ed;
-          border-color: rgba(249, 115, 22, 0.35);
-          color: #9a3412;
-        }
-
-        .study-toggle {
-          min-width: 28px;
-          padding: 5px 7px;
-          font-size: 11px;
-          font-weight: 700;
-        }
-
         .collapse-toggle {
           width: 24px;
           min-width: 24px;
@@ -255,25 +173,6 @@
           font-size: 13px;
           line-height: 24px;
           text-align: center;
-        }
-
-        .chattrail-study-text {
-          border-bottom: 1px dashed rgba(20, 184, 166, 0.48);
-          color: #0f766e;
-        }
-
-        .chattrail-study-token {
-          display: inline-flex;
-          align-items: center;
-          margin: 0 0.04em;
-          padding: 0 0.22em;
-          border: 1px solid rgba(20, 184, 166, 0.26);
-          border-radius: 4px;
-          background: rgba(236, 254, 255, 0.86);
-          color: #0f766e;
-          cursor: help;
-          line-height: inherit;
-          vertical-align: baseline;
         }
 
         .panel {
@@ -408,7 +307,6 @@
       <div class="toolbar">
         <span class="brand">ChatTrail</span>
         <div class="toolbar-actions">
-          <button type="button" class="study-toggle" data-action="toggle-page-study"></button>
           <button type="button" data-action="prompts">提示词</button>
           <button type="button" data-action="export-md">导出 MD</button>
           <button type="button" data-action="export-json">导出 JSON</button>
@@ -497,88 +395,6 @@
     state.quoteButton = button;
   }
 
-  function createStudyTooltip() {
-    const host = document.createElement("div");
-    host.id = "chattrail-study-tooltip";
-    host.style.position = "fixed";
-    host.style.left = "0";
-    host.style.top = "0";
-    host.style.zIndex = "2147483647";
-    host.style.display = "none";
-    host.style.pointerEvents = "none";
-    host.style.colorScheme = "light";
-
-    const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = `
-      <style>
-        :host {
-          all: initial;
-          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        }
-
-        .card {
-          width: 220px;
-          box-sizing: border-box;
-          border: 1px solid rgba(15, 23, 42, 0.16);
-          border-radius: 8px;
-          background: rgba(255, 255, 255, 0.98);
-          box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
-          color: #0f172a;
-          padding: 10px 12px;
-        }
-
-        .label {
-          color: #0f766e;
-          font-size: 11px;
-          font-weight: 800;
-          margin-bottom: 8px;
-        }
-
-        .row {
-          display: grid;
-          gap: 2px;
-        }
-
-        .row + .row {
-          margin-top: 8px;
-        }
-
-        .key {
-          color: #64748b;
-          font-size: 11px;
-          line-height: 1.3;
-        }
-
-        .value {
-          color: #0f172a;
-          font-size: 13px;
-          font-weight: 700;
-          line-height: 1.4;
-          word-break: break-word;
-        }
-      </style>
-      <div class="card" role="tooltip">
-        <div class="label">学习卡片</div>
-        <div class="row">
-          <div class="key">原文</div>
-          <div class="value value-original"></div>
-        </div>
-        <div class="row">
-          <div class="key">学习</div>
-          <div class="value value-replacement"></div>
-        </div>
-      </div>
-    `;
-
-    document.documentElement.appendChild(host);
-    state.studyTooltipHost = host;
-    state.studyTooltipOriginalEl = shadow.querySelector(".value-original");
-    state.studyTooltipReplacementEl = shadow.querySelector(".value-replacement");
-
-    window.addEventListener("scroll", hideStudyTooltip, { passive: true });
-    window.addEventListener("resize", hideStudyTooltip, { passive: true });
-  }
-
   function handleToolbarClick(event) {
     const button = event.target.closest("button[data-action]");
     if (!button) {
@@ -591,11 +407,6 @@
   function runAction(action) {
     if (action === "toggle-collapse") {
       toggleToolbarCollapsed();
-      return;
-    }
-
-    if (action === "toggle-page-study") {
-      togglePageStudy();
       return;
     }
 
@@ -667,8 +478,7 @@
 
     const toolbar = state.shadow.querySelector(".toolbar");
     const collapseButton = state.shadow.querySelector("[data-action='toggle-collapse']");
-    const studyButton = state.shadow.querySelector("[data-action='toggle-page-study']");
-    if (!toolbar || !collapseButton || !studyButton) {
+    if (!toolbar || !collapseButton) {
       return;
     }
 
@@ -676,14 +486,6 @@
     collapseButton.textContent = state.toolbarCollapsed ? "›" : "‹";
     collapseButton.title = state.toolbarCollapsed ? "展开工具栏" : "收起工具栏";
     collapseButton.setAttribute("aria-label", collapseButton.title);
-
-    studyButton.textContent = state.pageStudyEnabled ? "学" : "原";
-    studyButton.title = state.pageStudyEnabled
-      ? "本页学习已开启"
-      : "本页原文模式";
-    studyButton.setAttribute("aria-label", studyButton.title);
-    studyButton.classList.toggle("on", state.pageStudyEnabled);
-    studyButton.classList.toggle("off", !state.pageStudyEnabled);
   }
 
   function toggleToolbarCollapsed(forceValue) {
@@ -699,23 +501,6 @@
     renderToolbarState();
     updateFloatingPanelPlacement();
     window.requestAnimationFrame(() => clampFloatingPosition(state.root, TOOLBAR_POSITION_KEY));
-  }
-
-  function togglePageStudy() {
-    refreshPageContext();
-    state.pageStudyEnabled = !state.pageStudyEnabled;
-    writeBooleanFlag(state.pageStudyKey, state.pageStudyEnabled);
-
-    if (!state.pageStudyEnabled) {
-      hideQuoteButton();
-      hideStudyTooltip();
-      closePromptPanel();
-    }
-
-    renderToolbarState();
-    applySettings();
-    scheduleScan();
-    showToast(state.pageStudyEnabled ? "本页学习增强已开启" : "本页学习增强已关闭");
   }
 
   function renderPromptList() {
@@ -873,7 +658,7 @@
 
   function attachSelectionHandler() {
     document.addEventListener("mouseup", () => {
-      if (!state.settings.quoteReply || !state.pageStudyEnabled) {
+      if (!state.settings.quoteReply) {
         return;
       }
 
@@ -889,11 +674,6 @@
   }
 
   function showQuoteButtonForSelection() {
-    if (!state.pageStudyEnabled) {
-      hideQuoteButton();
-      return;
-    }
-
     const selection = window.getSelection();
     const text = normalizeText(selection?.toString() || "");
     if (!text || text.length < 2) {
@@ -932,9 +712,7 @@
       ...(stored[STORAGE_KEYS.settings] || {})
     };
     state.prompts = normalizePromptList(stored[STORAGE_KEYS.prompts]);
-    refreshPageContext();
     applySettings();
-    renderToolbarState();
     renderPromptList();
     scheduleScan();
   }
@@ -945,73 +723,27 @@
   }
 
   function scanPage() {
-    refreshPageContext();
-
-    if (!state.pageStudyEnabled) {
-      clearLearningDecorations();
-      return;
-    }
-
     if (state.settings.titleSync) {
       syncTitle();
-    } else {
-      restoreSyncedTitle();
     }
 
     if (state.settings.timestamps) {
       decorateTimestamps();
-    } else {
-      clearTimestamps();
     }
 
     if (state.settings.formulaCopy) {
       decorateFormulaCopyButtons();
-    } else {
-      clearFormulaCopyButtons();
     }
 
     if (state.settings.mermaidPreview) {
       decorateMermaidBlocks();
-    } else {
-      clearMermaidPreviews();
     }
-
-    decorateStudyText();
   }
 
   function applySettings() {
-    document.documentElement.classList.toggle("chattrail-wide-chat", Boolean(state.pageStudyEnabled && state.settings.wideChat));
-    document.documentElement.classList.toggle("chattrail-large-font", Boolean(state.pageStudyEnabled && state.settings.largeFont));
+    document.documentElement.classList.toggle("chattrail-wide-chat", Boolean(state.settings.wideChat));
+    document.documentElement.classList.toggle("chattrail-large-font", Boolean(state.settings.largeFont));
     applyVisualEffect();
-
-    if (!state.pageStudyEnabled) {
-      clearLearningDecorations();
-    }
-  }
-
-  function refreshPageContext() {
-    const pageStudyKey = getPageStudyKey();
-    if (pageStudyKey === state.pageStudyKey) {
-      return;
-    }
-
-    restoreSyncedTitle();
-    state.pageStudyKey = pageStudyKey;
-    state.pageStudyEnabled = readBooleanFlag(state.pageStudyKey, true);
-    state.titleBeforeSync = document.title;
-    state.syncedTitle = "";
-    renderToolbarState();
-    applySettings();
-  }
-
-  function clearLearningDecorations() {
-    clearTimestamps();
-    clearFormulaCopyButtons();
-    clearMermaidPreviews();
-    clearStudyText();
-    restoreSyncedTitle();
-    hideQuoteButton();
-    hideStudyTooltip();
   }
 
   function syncTitle() {
@@ -1022,23 +754,9 @@
     }
 
     const title = truncateText(firstUser.text.replace(/\n+/g, " "), 44);
-    const nextTitle = title ? `${title} - ${state.platform.name}` : "";
-    if (nextTitle && document.title !== nextTitle) {
-      if (document.title !== state.syncedTitle) {
-        state.titleBeforeSync = document.title;
-      }
-
-      document.title = nextTitle;
-      state.syncedTitle = nextTitle;
+    if (title && !document.title.startsWith(title)) {
+      document.title = `${title} - ${state.platform.name}`;
     }
-  }
-
-  function restoreSyncedTitle() {
-    if (state.syncedTitle && document.title === state.syncedTitle && state.titleBeforeSync) {
-      document.title = state.titleBeforeSync;
-    }
-
-    state.syncedTitle = "";
   }
 
   function decorateTimestamps() {
@@ -1061,10 +779,6 @@
       badge.title = new Date(timestamp).toLocaleString();
       message.element.appendChild(badge);
     });
-  }
-
-  function clearTimestamps() {
-    document.querySelectorAll(".chattrail-message-timestamp").forEach((badge) => badge.remove());
   }
 
   function decorateFormulaCopyButtons() {
@@ -1092,13 +806,6 @@
       });
 
       formula.appendChild(button);
-    });
-  }
-
-  function clearFormulaCopyButtons() {
-    document.querySelectorAll(".chattrail-formula-copy").forEach((button) => button.remove());
-    document.querySelectorAll(".chattrail-formula-host").forEach((formula) => {
-      formula.classList.remove("chattrail-formula-host");
     });
   }
 
@@ -1147,125 +854,6 @@
       card.append(toolbar, preview);
       pre.insertAdjacentElement("afterend", card);
     });
-  }
-
-  function clearMermaidPreviews() {
-    document.querySelectorAll(".chattrail-mermaid-card").forEach((card) => card.remove());
-    document.querySelectorAll("[data-chattrail-mermaid]").forEach((code) => {
-      delete code.dataset.chattrailMermaid;
-    });
-  }
-
-  function decorateStudyText() {
-    const messages = extractMessages();
-    messages.forEach((message) => {
-      if (!message.element?.isConnected) {
-        return;
-      }
-
-      const walker = document.createTreeWalker(
-        message.element,
-        NodeFilter.SHOW_TEXT,
-        {
-          acceptNode(node) {
-            return shouldSkipStudyTextNode(node)
-              ? NodeFilter.FILTER_REJECT
-              : NodeFilter.FILTER_ACCEPT;
-          }
-        }
-      );
-
-      const textNodes = [];
-      let currentNode = walker.nextNode();
-      while (currentNode) {
-        textNodes.push(currentNode);
-        currentNode = walker.nextNode();
-      }
-
-      textNodes.forEach((node) => {
-        const fragment = buildStudyFragment(node.nodeValue || "");
-        if (!fragment) {
-          return;
-        }
-
-        node.parentNode?.replaceChild(fragment, node);
-      });
-    });
-  }
-
-  function clearStudyText() {
-    const parents = new Set();
-    document.querySelectorAll(".chattrail-study-token, .chattrail-study-text").forEach((span) => {
-      parents.add(span.parentNode);
-      span.replaceWith(document.createTextNode(span.dataset.chattrailStudyOriginal || span.textContent || ""));
-    });
-
-    parents.forEach((parent) => parent?.normalize?.());
-  }
-
-  function shouldSkipStudyTextNode(node) {
-    if (!node || !node.parentElement) {
-      return true;
-    }
-
-    const text = node.nodeValue || "";
-    if (!/\S/.test(text)) {
-      return true;
-    }
-
-    const parent = node.parentElement;
-    if (parent.closest(".chattrail-study-token, .chattrail-study-text, .chattrail-message-timestamp, .chattrail-formula-copy, .chattrail-mermaid-card, #chattrail-enhancements-root, #chattrail-timeline-root")) {
-      return true;
-    }
-
-    return Boolean(parent.closest("code, pre, kbd, samp, var, math, mjx-container, .katex, script, style, textarea, button, select, option, svg, a, [contenteditable='true'], [role='textbox']"));
-  }
-
-  function buildStudyFragment(text) {
-    STUDY_PATTERN.lastIndex = 0;
-    let match = STUDY_PATTERN.exec(text);
-    if (!match) {
-      return null;
-    }
-
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-
-    while (match) {
-      const entry = resolveStudyEntry(match[0]);
-      if (entry && entry.target && entry.target !== match[0]) {
-        if (match.index > lastIndex) {
-          fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-        }
-
-        fragment.appendChild(createStudyToken(entry, match[0]));
-        lastIndex = match.index + match[0].length;
-      }
-
-      match = STUDY_PATTERN.exec(text);
-    }
-
-    if (lastIndex === 0) {
-      return null;
-    }
-
-    if (lastIndex < text.length) {
-      fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-    }
-
-    return fragment;
-  }
-
-  function createStudyToken(entry, originalText) {
-    const token = document.createElement("span");
-    token.className = "chattrail-study-token";
-    token.dataset.chattrailStudyOriginal = originalText;
-    token.dataset.chattrailStudyReplacement = entry.target;
-    token.textContent = entry.target;
-    token.addEventListener("mouseenter", () => showStudyTooltip(token));
-    token.addEventListener("mouseleave", hideStudyTooltip);
-
-    return token;
   }
 
   function renderMermaidPreview(source) {
@@ -1642,7 +1230,7 @@
       state.effectLayer = null;
     }
 
-    if (!state.pageStudyEnabled || state.settings.visualEffect === "none") {
+    if (state.settings.visualEffect === "none") {
       return;
     }
 
@@ -1885,47 +1473,6 @@
     state.shadow.querySelector(".toast")?.classList.toggle("below", shouldOpenBelow);
   }
 
-  function showStudyTooltip(target) {
-    if (!state.pageStudyEnabled || !state.studyTooltipHost || !target?.isConnected) {
-      return;
-    }
-
-    const original = target.dataset.chattrailStudyOriginal || target.textContent || "";
-    const replacement = target.dataset.chattrailStudyReplacement || target.textContent || "";
-    state.studyTooltipOriginalEl.textContent = original;
-    state.studyTooltipReplacementEl.textContent = replacement;
-
-    state.studyTooltipHost.style.display = "block";
-    state.studyTooltipHost.style.visibility = "hidden";
-
-    const rect = target.getBoundingClientRect();
-    const tooltipRect = state.studyTooltipHost.getBoundingClientRect();
-    const maxLeft = Math.max(8, window.innerWidth - tooltipRect.width - 8);
-    const preferredLeft = rect.left + rect.width / 2 - tooltipRect.width / 2;
-    let top = rect.bottom + 10;
-
-    if (top + tooltipRect.height > window.innerHeight - 8) {
-      top = rect.top - tooltipRect.height - 10;
-    }
-
-    state.studyTooltipHost.style.left = `${Math.round(clamp(preferredLeft, 8, maxLeft))}px`;
-    state.studyTooltipHost.style.top = `${Math.round(Math.max(8, top))}px`;
-    state.studyTooltipHost.style.visibility = "visible";
-  }
-
-  function hideStudyTooltip() {
-    if (!state.studyTooltipHost) {
-      return;
-    }
-
-    state.studyTooltipHost.style.display = "none";
-    state.studyTooltipHost.style.visibility = "hidden";
-  }
-
-  function getPageStudyKey() {
-    return `${PAGE_STUDY_KEY_PREFIX}.${state.platform.id}.${hashText(`${window.location.origin}${window.location.pathname}`)}`;
-  }
-
   function readBooleanFlag(key, defaultValue) {
     try {
       const raw = localStorage.getItem(key);
@@ -1989,9 +1536,6 @@
 
   function getCleanElementText(element) {
     const clone = element.cloneNode(true);
-    clone.querySelectorAll("[data-chattrail-study-original]").forEach((node) => {
-      node.replaceWith(document.createTextNode(node.getAttribute("data-chattrail-study-original") || node.textContent || ""));
-    });
     clone.querySelectorAll("[class^='chattrail-'], [class*=' chattrail-'], #chattrail-enhancements-root, #chattrail-timeline-root").forEach((node) => {
       node.remove();
     });
@@ -2028,48 +1572,6 @@
 
   function createId() {
     return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  function buildStudyEntries() {
-    return STUDY_GLOSSARY.flatMap(([source, target]) => {
-      return [
-        { source, target, key: source, latin: false },
-        { source: target, target: source, key: target.toLowerCase(), latin: true }
-      ];
-    });
-  }
-
-  function buildStudyPattern() {
-    const latinTerms = STUDY_ENTRIES
-      .filter((entry) => entry.latin)
-      .map((entry) => entry.source)
-      .sort((left, right) => right.length - left.length)
-      .map(escapeRegex);
-    const nativeTerms = STUDY_ENTRIES
-      .filter((entry) => !entry.latin)
-      .map((entry) => entry.source)
-      .sort((left, right) => right.length - left.length)
-      .map(escapeRegex);
-    const parts = [];
-
-    if (latinTerms.length > 0) {
-      parts.push(`\\b(?:${latinTerms.join("|")})\\b`);
-    }
-
-    if (nativeTerms.length > 0) {
-      parts.push(`(?:${nativeTerms.join("|")})`);
-    }
-
-    return new RegExp(parts.join("|"), "giu");
-  }
-
-  function resolveStudyEntry(match) {
-    const normalized = /[a-z]/i.test(match) ? match.toLowerCase() : match;
-    return STUDY_ENTRIES.find((item) => item.key === normalized) || null;
-  }
-
-  function escapeRegex(value) {
-    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   function hashText(text) {
