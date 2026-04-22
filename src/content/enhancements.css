@@ -75,6 +75,28 @@
   height: auto !important;
 }
 
+.chattrail-study-token {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin: 0 0.04em !important;
+  padding: 0 0.22em !important;
+  border: 1px solid rgba(20, 184, 166, 0.26) !important;
+  border-radius: 4px !important;
+  background: rgba(236, 254, 255, 0.16) !important;
+  color: #2dd4bf !important;
+  cursor: help !important;
+  font-weight: 600 !important;
+  line-height: inherit !important;
+  vertical-align: baseline !important;
+  white-space: nowrap !important;
+}
+
+.chattrail-study-token:hover {
+  background: rgba(20, 184, 166, 0.2) !important;
+  border-color: rgba(45, 212, 191, 0.55) !important;
+  color: #5eead4 !important;
+}
+
 .chattrail-wide-chat main {
   max-width: none !important;
 }
