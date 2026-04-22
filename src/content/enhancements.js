@@ -11,6 +11,8 @@
     settings: "chattrail.settings"
   };
   const TOOLBAR_POSITION_KEY = "chattrail.toolbar.position";
+  const TOOLBAR_COLLAPSED_KEY = "chattrail.toolbar.collapsed";
+  const PAGE_STUDY_KEY_PREFIX = "chattrail.page-study";
   const FLOATING_MARGIN = 8;
 
   const DEFAULT_SETTINGS = {
@@ -49,7 +51,12 @@
     quoteButton: null,
     observer: null,
     scanTimer: 0,
-    effectLayer: null
+    effectLayer: null,
+    toolbarCollapsed: false,
+    pageStudyEnabled: true,
+    pageStudyKey: "",
+    titleBeforeSync: document.title,
+    syncedTitle: ""
   };
 
   if (!state.platform) {
@@ -69,6 +76,10 @@
       ...(stored[STORAGE_KEYS.settings] || {})
     };
     state.prompts = normalizePromptList(stored[STORAGE_KEYS.prompts]);
+    state.toolbarCollapsed = readBooleanFlag(TOOLBAR_COLLAPSED_KEY, false);
+    state.pageStudyKey = getPageStudyKey();
+    state.pageStudyEnabled = readBooleanFlag(state.pageStudyKey, true);
+    state.titleBeforeSync = document.title;
 
     createToolbar();
     createQuoteButton();
@@ -107,7 +118,7 @@
         .toolbar {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 10px;
           border: 1px solid rgba(15, 23, 42, 0.16);
           border-radius: 8px;
           background: rgba(255, 255, 255, 0.95);
@@ -119,9 +130,24 @@
           user-select: none;
         }
 
+        .toolbar.collapsed {
+          gap: 6px;
+        }
+
         .toolbar.dragging,
         .panel-header.dragging {
           cursor: grabbing;
+        }
+
+        .toolbar-actions {
+          display: flex;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+
+        .toolbar.collapsed .toolbar-actions > button:not([data-action='toggle-collapse']) {
+          display: none;
         }
 
         button {
@@ -145,6 +171,18 @@
           font-size: 12px;
           font-weight: 800;
           padding: 0 5px;
+        }
+
+        .study-toggle.on {
+          background: #ecfeff;
+          border-color: rgba(20, 184, 166, 0.45);
+          color: #115e59;
+        }
+
+        .study-toggle.off {
+          background: #fff7ed;
+          border-color: rgba(249, 115, 22, 0.35);
+          color: #9a3412;
         }
 
         .panel {
@@ -278,10 +316,14 @@
       </style>
       <div class="toolbar">
         <span class="brand">ChatTrail</span>
-        <button type="button" data-action="prompts">提示词</button>
-        <button type="button" data-action="export-md">导出 MD</button>
-        <button type="button" data-action="export-json">导出 JSON</button>
-        <button type="button" data-action="settings">设置</button>
+        <div class="toolbar-actions">
+          <button type="button" class="study-toggle" data-action="toggle-page-study"></button>
+          <button type="button" data-action="prompts">提示词</button>
+          <button type="button" data-action="export-md">导出 MD</button>
+          <button type="button" data-action="export-json">导出 JSON</button>
+          <button type="button" data-action="settings">设置</button>
+          <button type="button" data-action="toggle-collapse"></button>
+        </div>
       </div>
       <section class="panel" aria-label="ChatTrail prompt library">
         <div class="panel-header">
@@ -324,6 +366,7 @@
       updateFloatingPanelPlacement();
     }, { passive: true });
 
+    renderToolbarState();
     shadow.addEventListener("click", handleToolbarClick);
     shadow.querySelector("[data-role='prompt-search']").addEventListener("input", renderPromptList);
   }
@@ -373,6 +416,16 @@
   }
 
   function runAction(action) {
+    if (action === "toggle-collapse") {
+      toggleToolbarCollapsed();
+      return;
+    }
+
+    if (action === "toggle-page-study") {
+      togglePageStudy();
+      return;
+    }
+
     if (action === "prompts") {
       togglePromptPanel();
       return;
@@ -419,6 +472,10 @@
       return;
     }
 
+    if (state.toolbarCollapsed) {
+      toggleToolbarCollapsed(false);
+    }
+
     const isOpen = state.promptPanel.classList.toggle("open");
     if (isOpen) {
       updateFloatingPanelPlacement();
@@ -428,6 +485,61 @@
 
   function closePromptPanel() {
     state.promptPanel.classList.remove("open");
+  }
+
+  function renderToolbarState() {
+    if (!state.shadow) {
+      return;
+    }
+
+    const toolbar = state.shadow.querySelector(".toolbar");
+    const collapseButton = state.shadow.querySelector("[data-action='toggle-collapse']");
+    const studyButton = state.shadow.querySelector("[data-action='toggle-page-study']");
+    if (!toolbar || !collapseButton || !studyButton) {
+      return;
+    }
+
+    toolbar.classList.toggle("collapsed", state.toolbarCollapsed);
+    collapseButton.textContent = state.toolbarCollapsed ? "展开" : "收起";
+    collapseButton.title = state.toolbarCollapsed ? "展开工具栏" : "收起工具栏";
+
+    studyButton.textContent = state.pageStudyEnabled ? "本页学习：开" : "本页学习：关";
+    studyButton.title = state.pageStudyEnabled
+      ? "当前页启用学习增强"
+      : "当前页关闭学习增强";
+    studyButton.classList.toggle("on", state.pageStudyEnabled);
+    studyButton.classList.toggle("off", !state.pageStudyEnabled);
+  }
+
+  function toggleToolbarCollapsed(forceValue) {
+    state.toolbarCollapsed = typeof forceValue === "boolean"
+      ? forceValue
+      : !state.toolbarCollapsed;
+    writeBooleanFlag(TOOLBAR_COLLAPSED_KEY, state.toolbarCollapsed);
+
+    if (state.toolbarCollapsed) {
+      closePromptPanel();
+    }
+
+    renderToolbarState();
+    updateFloatingPanelPlacement();
+    window.requestAnimationFrame(() => clampFloatingPosition(state.root, TOOLBAR_POSITION_KEY));
+  }
+
+  function togglePageStudy() {
+    refreshPageContext();
+    state.pageStudyEnabled = !state.pageStudyEnabled;
+    writeBooleanFlag(state.pageStudyKey, state.pageStudyEnabled);
+
+    if (!state.pageStudyEnabled) {
+      hideQuoteButton();
+      closePromptPanel();
+    }
+
+    renderToolbarState();
+    applySettings();
+    scheduleScan();
+    showToast(state.pageStudyEnabled ? "本页学习增强已开启" : "本页学习增强已关闭");
   }
 
   function renderPromptList() {
@@ -585,7 +697,7 @@
 
   function attachSelectionHandler() {
     document.addEventListener("mouseup", () => {
-      if (!state.settings.quoteReply) {
+      if (!state.settings.quoteReply || !state.pageStudyEnabled) {
         return;
       }
 
@@ -601,6 +713,11 @@
   }
 
   function showQuoteButtonForSelection() {
+    if (!state.pageStudyEnabled) {
+      hideQuoteButton();
+      return;
+    }
+
     const selection = window.getSelection();
     const text = normalizeText(selection?.toString() || "");
     if (!text || text.length < 2) {
@@ -639,7 +756,9 @@
       ...(stored[STORAGE_KEYS.settings] || {})
     };
     state.prompts = normalizePromptList(stored[STORAGE_KEYS.prompts]);
+    refreshPageContext();
     applySettings();
+    renderToolbarState();
     renderPromptList();
     scheduleScan();
   }
@@ -650,27 +769,69 @@
   }
 
   function scanPage() {
+    refreshPageContext();
+
+    if (!state.pageStudyEnabled) {
+      clearLearningDecorations();
+      return;
+    }
+
     if (state.settings.titleSync) {
       syncTitle();
+    } else {
+      restoreSyncedTitle();
     }
 
     if (state.settings.timestamps) {
       decorateTimestamps();
+    } else {
+      clearTimestamps();
     }
 
     if (state.settings.formulaCopy) {
       decorateFormulaCopyButtons();
+    } else {
+      clearFormulaCopyButtons();
     }
 
     if (state.settings.mermaidPreview) {
       decorateMermaidBlocks();
+    } else {
+      clearMermaidPreviews();
     }
   }
 
   function applySettings() {
-    document.documentElement.classList.toggle("chattrail-wide-chat", Boolean(state.settings.wideChat));
-    document.documentElement.classList.toggle("chattrail-large-font", Boolean(state.settings.largeFont));
+    document.documentElement.classList.toggle("chattrail-wide-chat", Boolean(state.pageStudyEnabled && state.settings.wideChat));
+    document.documentElement.classList.toggle("chattrail-large-font", Boolean(state.pageStudyEnabled && state.settings.largeFont));
     applyVisualEffect();
+
+    if (!state.pageStudyEnabled) {
+      clearLearningDecorations();
+    }
+  }
+
+  function refreshPageContext() {
+    const pageStudyKey = getPageStudyKey();
+    if (pageStudyKey === state.pageStudyKey) {
+      return;
+    }
+
+    restoreSyncedTitle();
+    state.pageStudyKey = pageStudyKey;
+    state.pageStudyEnabled = readBooleanFlag(state.pageStudyKey, true);
+    state.titleBeforeSync = document.title;
+    state.syncedTitle = "";
+    renderToolbarState();
+    applySettings();
+  }
+
+  function clearLearningDecorations() {
+    clearTimestamps();
+    clearFormulaCopyButtons();
+    clearMermaidPreviews();
+    restoreSyncedTitle();
+    hideQuoteButton();
   }
 
   function syncTitle() {
@@ -681,9 +842,23 @@
     }
 
     const title = truncateText(firstUser.text.replace(/\n+/g, " "), 44);
-    if (title && !document.title.startsWith(title)) {
-      document.title = `${title} - ${state.platform.name}`;
+    const nextTitle = title ? `${title} - ${state.platform.name}` : "";
+    if (nextTitle && document.title !== nextTitle) {
+      if (document.title !== state.syncedTitle) {
+        state.titleBeforeSync = document.title;
+      }
+
+      document.title = nextTitle;
+      state.syncedTitle = nextTitle;
     }
+  }
+
+  function restoreSyncedTitle() {
+    if (state.syncedTitle && document.title === state.syncedTitle && state.titleBeforeSync) {
+      document.title = state.titleBeforeSync;
+    }
+
+    state.syncedTitle = "";
   }
 
   function decorateTimestamps() {
@@ -706,6 +881,10 @@
       badge.title = new Date(timestamp).toLocaleString();
       message.element.appendChild(badge);
     });
+  }
+
+  function clearTimestamps() {
+    document.querySelectorAll(".chattrail-message-timestamp").forEach((badge) => badge.remove());
   }
 
   function decorateFormulaCopyButtons() {
@@ -733,6 +912,13 @@
       });
 
       formula.appendChild(button);
+    });
+  }
+
+  function clearFormulaCopyButtons() {
+    document.querySelectorAll(".chattrail-formula-copy").forEach((button) => button.remove());
+    document.querySelectorAll(".chattrail-formula-host").forEach((formula) => {
+      formula.classList.remove("chattrail-formula-host");
     });
   }
 
@@ -780,6 +966,13 @@
 
       card.append(toolbar, preview);
       pre.insertAdjacentElement("afterend", card);
+    });
+  }
+
+  function clearMermaidPreviews() {
+    document.querySelectorAll(".chattrail-mermaid-card").forEach((card) => card.remove());
+    document.querySelectorAll("[data-chattrail-mermaid]").forEach((code) => {
+      delete code.dataset.chattrailMermaid;
     });
   }
 
@@ -1157,7 +1350,7 @@
       state.effectLayer = null;
     }
 
-    if (state.settings.visualEffect === "none") {
+    if (!state.pageStudyEnabled || state.settings.visualEffect === "none") {
       return;
     }
 
@@ -1398,6 +1591,31 @@
     const shouldOpenBelow = rootRect.top < 280;
     state.promptPanel?.classList.toggle("below", shouldOpenBelow);
     state.shadow.querySelector(".toast")?.classList.toggle("below", shouldOpenBelow);
+  }
+
+  function getPageStudyKey() {
+    return `${PAGE_STUDY_KEY_PREFIX}.${state.platform.id}.${hashText(`${window.location.origin}${window.location.pathname}`)}`;
+  }
+
+  function readBooleanFlag(key, defaultValue) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw === null) {
+        return defaultValue;
+      }
+
+      return JSON.parse(raw) === true;
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+
+  function writeBooleanFlag(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(Boolean(value)));
+    } catch (error) {
+      // Boolean UI preferences are best-effort only.
+    }
   }
 
   function readFloatingPosition(key) {
